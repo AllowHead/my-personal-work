@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="jp">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        canvas {
+            border: 0.1em solid silver;
+        }
+
+        #flagToggle {
+            padding: 0.5em 1em;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+
+        <canvas id="mainCanvas">
+
+        </canvas>
+
+        <button id="flagToggle">旗を立てる</button>
+
+        <p id="gameLog"></p>
+
+    </div>
+    <script>
+
+        class game {
+
+            //最初の宣言
+            constructor(canvasID, gameLog, flagToggle, massHeight, massWidth, massSize, bombDifficult) {
+                //引数の格納
+                this.height = massHeight; //縦マスの数
+                this.width = massWidth; //横マスの数
+                this.massSize = massSize; //1マスのサイズ
+                this.bombDifficult = bombDifficult; //爆弾の数(必ずこの数だけ爆弾が置かれるとは限らない)
+
+                //現在の手数を入れる用の変数
+                //初手かどうかの判定にしか用いていない模様
+                this.move = 0;
+
+                //旗を立てるモードになっているか否かの判定用変数
+                this.flag = false;
+
+                //ゲームオーバー、ゲームクリアの判定用の変数
+                this.gameover = false;
+                this.gameclear = false;
+
+
+                //操作する物の指定
+                this.canvas = document.getElementById(canvasID);
+                this.ctx = this.canvas.getContext('2d');
+                this.gameLog = document.getElementById(gameLog); //ゲームオーバーの表示用のコンテンツの指定
+                this.flagToggleB = document.getElementById(flagToggle); //旗立てモードの切り替え用ボタンの指定
+
+                //キャンバスのピクセルサイズを計算
+                //キャンバスの初期化ぐらいにしか使ってない
+                this.canvasHeight = this.height * this.massSize;
+                this.canvasWidth = this.width * this.massSize;
+
+                //計算したキャンバスのピクセルサイズを実際に入力
+                this.canvas.height = this.canvasHeight;
+                this.canvas.width = this.canvasWidth;
+
+
+                //各種配列の宣言
+                this.onBomb = []; //爆弾の位置
+                this.onOpen = []; //開封済みのマスの記憶
+                this.onFlag = []; //旗の立っている場所の記憶
+                this.adjacentBomb = [];　//隣接する爆弾の数の記憶
+                this.onSelected = [];　//メソッドの処理中に再起した事がある座標かどうか判定する用
+
+                for (let x = 0; x < this.width; x++) {
+                    this.onBomb[x] = [];
+                    this.onOpen[x] = [];
+                    this.onFlag[x] = [];
+                    this.adjacentBomb[x] = [];
+                    this.onSelected[x] = [];
+                    for (let y = 0; y < this.height; y++) {
+                        this.onBomb[x][y] = false;
+                        this.onOpen[x][y] = false;
+                        this.onFlag[x][y] = false;
+                        this.adjacentBomb[x][y] = 0;
+                        this.onSelected[x][y] = false;
+                    }
+                }
+
+
+            }
+
+            //引数のクリックイベントからクリックした位置にあるマスの座標を計算し、クリックした際の処理を行うメソッドにマスの座標を渡す
+            calcMass(e) {
+                var x = e.pageX - document.getElementById('mainCanvas').getBoundingClientRect().left + window.pageXOffset;
+                var y = e.pageY - document.getElementById('mainCanvas').getBoundingClientRect().top + window.pageYOffset;
+                let clickX = Math.floor(x / this.massSize);
+                let clickY = Math.floor(y / this.massSize);
+                console.log(clickX, clickY);
+                this.massClick(clickX, clickY);
+            }
+
+            //キャンバスの初期化を行う
+            canvasSetUp() {
+                //全部まっさらに
+                this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
+
+                //各マスの枠を描画する
+                for (let x = 0; x < this.width; x++) {
+                    for (let y = 0; y < this.height; y++) {
+                        let mass = this.massSize;
+
+                        this.ctx.fillStyle = 'white'
+                        this.ctx.fillRect(x * mass, y * mass, mass, mass);
+                        this.ctx.fillStyle = 'grey';
+                        this.ctx.strokeRect(x * mass, y * mass, mass, mass);
+                    }
+                }
+            }
+
+            //旗立てモードの切り替えを行う
+            //もう少しわかりやすい記法に変えたい
+            toggleFlag() {
+                //旗立てモードの状態を反転
+                this.flag = !this.flag;
+
+                //旗立てモードのオンオフで切り替えボタンのテキストを変える
+                if (this.flag == true) {
+                    this.flagToggleB.innerText = 'マスを開ける';
+                } else if (this.flag == false) {
+                    this.flagToggleB.innerText = '旗を立てる';
+                }
+            }
+
+            //クリックしたマスに対し各種メソッドを呼び出す
+            massClick(x, y) {
+
+                //ゲームオーバーかゲームクリアの状態になっていない場合
+                if (this.gameclear == false && this.gameover == false) {
+                    //手数のカウントをプラス
+                    this.move++;
+
+                    //初手の場合のみここで爆弾を作成するメソッドを呼び出す
+                    if (this.move <= 1) {
+                        console.log('ボム作成');
+                        this.makeBomb(x, y);
+                    }
+
+                    //旗置きモードがオンで、クリックした場所が開けていないマスの場合、該当する場所に旗を立てる
+                    if (this.flag == true && this.onOpen[x][y] == false) {
+                        console.log('旗を設置')
+                        this.drawMass(x, y, true);
+                        return;
+                    }
+
+                    //クリックした箇所がすでに開いているor旗が立っているなら、重複した場所をクリックしたとしてなにも処理を行わず終了する
+                    if (this.onOpen[x][y] == true || this.onFlag[x][y] == true) {
+                        console.log('重複');
+                        return;
+                    }
+
+                    //クリックしたマスが爆弾だった場合、ゲームオーバーにする
+                    if (this.onBomb[x][y] == true) {
+                        console.log('ゲームオーバー');
+                        this.over();
+                        return;
+                    }
+
+                    //旗立てモードがオフで、クリックしたマスがまだ開いていないマスで、かつ中に爆弾が入っていないなら中身を開ける
+                    console.log(this.move + '手目');
+                    this.drawMass(x, y, false);
+
+                    //ゲームクリアの判定
+                    if (this.checkClear()) {
+                        console.log('ゲームクリアー');
+                        this.confirmClear();
+                        return;
+                    }
+                }
+            }
+
+
+            
+            //ゲームクリア時の処理を行う
+            confirmClear() {
+                this.gameclear = true;
+                this.allOpen();
+                this.gameLog.textContent = 'GAMECLEAR';
+            }
+            
+            //ゲームオーバー時の処理
+            //クリア時の処理に比べてメソッド名に格差がある気がする
+            over() {
+                this.allOpen();
+                this.gameover = true;
+                this.gameLog.textContent = 'GAMEOVER';
+            }
+
+            //爆弾ではないマスの中に開けていないマスがあるかどうかを調べ、爆弾ではないマスを全て開けた場合に限り、クリアしたかどうかの判定を返す
+            checkClear() {
+                //最初にクリア判定をtrueにしておき、一個でも開けていないマスがあったらfalseを入れるという方式
+                let clearBool = true;
+                for (let wx = 0; wx < this.width; wx++) {
+                    for (let hy = 0; hy < this.height; hy++) {
+                        if (this.onBomb[wx][hy] != true && this.onOpen[wx][hy] == false) {
+                            clearBool = false;
+                            break;
+                        }
+                    }
+                }
+                return clearBool;
+            }
+
+
+            //爆弾をランダム生成し、各座標にボム数を入力しておく
+            //引数は最初にクリックしたマスの座標。初手に爆弾を踏まないようにする調整のために使う
+            makeBomb(x, y) {
+                let loopCount = 0; //爆弾設置の重複回数のカウント
+                let loopLimit = 100; //許容重複回数の設定
+                let setBombCount = 0; //実際に設置した爆弾の数のカウント
+
+                for (let i = 0; i < this.bombDifficult; i++) {
+                    //爆弾の配置場所を決定する乱数の設定
+                    let randomX = Math.floor(Math.random() * this.width);
+                    let randomY = Math.floor(Math.random() * this.height);
+
+                    
+                    //爆弾の設置位置が重複した場合、このループを無かったことにする
+                    if (this.onBomb[randomX][randomY] == true) {
+                        loopCount++;
+                        i--;
+                        continue;
+                    }
+
+                    //重複回数が上限に達した場合ループを終了する
+                    if (loopCount > loopLimit) {
+                        console.log('重複回数が上限に達したためエスケープ', setBombCount + '個の爆弾を埋設');
+                        break;
+                    }
+
+                    //爆弾を設置して爆弾の設置回数をプラプラ
+                    this.onBomb[randomX][randomY] = true;
+                    setBombCount++;
+
+                }
+
+
+                //最初にクリックしたマスから爆弾を出さない用のメソッドを呼び出す
+                //このメソッドの引数をそのままイン
+                this.eraseBombforClicked(x, y);
+
+                //隣接爆弾数の表示のためのメソッドを呼び出す
+                this.findAdjacentBomb();
+
+                console.log('作成完了');
+            }
+
+            //クリックしたマスの周辺から爆弾を消し去る
+            //爆弾数の設定と実際の爆弾の埋蔵数が合わないのは大体こいつのせい
+            eraseBombforClicked(x, y) {
+                for (let nearX = -1; nearX < 2; nearX++) {
+                    for (let nearY = -1; nearY < 2; nearY++) {
+                        if (x + nearX >= 0 && y + nearY >= 0) {
+                            if (this.onBomb[x + nearX][y + nearY] == true) {
+                                this.onBomb[x + nearX][y + nearY] = false;
+                            }
+                        }
+                    }
+                }
+            }
+
+            //各マスにそれぞれの隣接する爆弾の数を入力する
+            findAdjacentBomb() {
+                for (let x = 0; x < this.onBomb.length; x++) {
+                    for (let y = 0; y < this.onBomb[x].length; y++) {
+                        //マスの周辺マスの座標精査用ループ。基準となったマス（x,y）の周辺8マスを含めた計9マスを参照し処理を行う
+                        //爆弾マスを踏んだ場合隣接爆弾数の計算が狂ってしまう。ただしルール上あり得ない動作なのでその場合の処理は実装しない
+                        for (let xb = 0; xb < 3; xb++) {
+                            for (let yb = 0; yb < 3; yb++) {
+                                let nx = x + xb - 1; //実際に参照を行うx座標の計算
+                                let ny = y + yb - 1; //実際に参照を行うy座標の計算
+                                //フィールド外の座標を参照している場合は現在の処理をスキップし、次のループに移る
+                                if (nx < 0 || ny < 0 || nx >= this.onBomb.length || ny >= this.onBomb[x].length) {
+                                    continue;
+                                }
+                                //参照したマスに爆弾があるなら、基準となったマスの隣接爆弾数ステートを+1する
+                                if (this.onBomb[nx][ny] === true) {
+                                    this.adjacentBomb[x][y]++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            //引数の座標マスを描画する
+            drawMass(x, y, flaging) {
+                //引数のマスの実際の画面上の座標を計算する
+                let calcX = x * this.massSize;
+                let calcY = y * this.massSize;
+
+                //染色処理
+                //flagingがtrueの(旗を立てろと言われた)場合
+                if (flaging == true) {
+                    //対象のマスに既に旗が立っているか否かで分岐
+                    if (this.onFlag[x][y] == false) {
+                        this.ctx.fillStyle = 'magenta';
+                        this.onFlag[x][y] = true;
+                    } else if (this.onFlag[x][y] == true) {
+                        this.ctx.fillStyle = 'white';
+                        this.onFlag[x][y] = false;
+                    }
+                    //対象のマスが爆弾だったら
+                } else if (this.onBomb[x][y] == true) {
+                    this.ctx.fillStyle = 'red';
+                    //それ以外(旗立てモードでなく、クリックしたマスが爆弾でないなら)
+                } else {
+                    this.ctx.fillStyle = 'grey';
+                }
+
+                //旗立てモードでないなら
+                if (flaging == false) {
+                    //周辺にボムがないマスを自動で開けるようにする
+                    if (this.adjacentBomb[x][y] === 0 && this.onSelected[x][y] == false && this.onFlag[x][y] == false) {
+                        for (let xb = 0; xb < 3; xb++) {
+                            for (let yb = 0; yb < 3; yb++) {
+                                let nx = x + xb - 1;
+                                let ny = y + yb - 1;
+                                //範囲外を参照している場合は処理をスキップ
+                                if (nx < 0 || ny < 0 || nx >= this.onBomb.length || ny >= this.onBomb[x].length) {
+                                    continue;
+                                }
+                                //onSelectedで無限ループを回避
+                                this.onSelected[x][y] = true;
+                                this.drawMass(nx, ny, false);
+                            }
+                        }
+                    }
+                    this.onOpen[x][y] = true;
+                }
+
+                //実際に書き込みを行う
+                this.ctx.fillRect(x * this.massSize, y * this.massSize, this.massSize, this.massSize);
+
+                //爆弾がない場合に隣接爆弾数を表示
+                if (this.onBomb[x][y] == false && flaging == false) {
+                    this.writeAdjacentBomb(x, y);
+                }
+            }
+
+            //引数の座標の隣接爆弾数を実際に描画する
+            writeAdjacentBomb(x, y) {
+                this.ctx.fillStyle = 'white';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(this.adjacentBomb[x][y], x * this.massSize + (this.massSize * 0.5), y * this.massSize + (this.massSize * 0.5), this.massSize);
+
+                //fillStyleを元に戻す
+                this.ctx.fillStyle = 'grey';
+            }
+
+            //全てのマスを開けるデバッグ用関数
+            allOpen() {
+                console.log('全開け');
+                for (let x = 0; x < this.width; x++) {
+                    for (let y = 0; y < this.height; y++) {
+
+                        if (this.onFlag[x][y] == true) {
+
+                            if (this.onBomb[x][y] == true) {
+                                this.ctx.fillStyle = 'green';
+                            }
+
+                            if (this.onBomb[x][y] == false) {
+                                this.ctx.fillStyle = 'black';
+                            }
+
+                            this.ctx.fillRect(x * this.massSize, y * this.massSize, this.massSize, this.massSize);
+                            continue;
+                        }
+
+                        this.drawMass(x, y, false);
+                    }
+                }
+            }
+
+        }
+
+        let test = new game('mainCanvas', 'gameLog', 'flagToggle', 10, 20, 25, 20);
+
+        document.getElementById('mainCanvas').onclick = (e) => {
+            test.calcMass(e);
+        }
+
+        document.getElementById('flagToggle').onclick = (e) => {
+            test.toggleFlag();
+        }
+
+    </script>
+</body>
+
+</html>
