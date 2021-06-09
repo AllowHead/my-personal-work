@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="jp">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>めざパ判定</title>
+    <style>
+        body {
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <p>各個体値はハイフンで区切り、<strong>必ずH-A-B-C-D-Sの順番に入力してください。</strong></p>
+    <p>例: 31-31-31-0-31-31</p>
+    <p>例: 5-9-0-A-V-U</p>
+    <input type="text" name="stats" id="stats">
+    <button type="submit" 　id="submitB" onclick="test.methodStream()">計算する</button>
+    <p id="result"></p>
+    <script>
+        class clacer {
+            constructor() {
+
+                this.inputID = document.getElementById('stats');
+                this.buttonID = document.getElementById('submitB');
+
+                this.result = document.getElementById('result');
+
+                this.alphabetList = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+
+                this.makeStats = [];
+                this.typeStack = ['', 0];
+
+                this.HiPow2ndGen = [['かくとう', 'ひこう', 'どく', 'じめん'], ['いわ', 'むし', 'ゴースト', 'はがね'], ['ほのお', 'みず', 'くさ', 'でんき'], ['エスパー', 'こおり', 'ドラゴン', 'あく']];
+
+                this.typeList = ['ノーマル', 'ほのお', 'みず', 'でんき', 'くさ', 'こおり', 'かくとう', 'どく', 'じめん', 'ひこう', 'エスパー', 'むし', 'いわ', 'ゴースト', 'ドラゴン', 'あく', 'はがね', 'フェアリー'];
+            }
+
+            methodStream() {
+                this.makeStats = [];
+                this.makeStatsArray();
+                this.calcHiddenPowerType();
+                this.writeResult();
+            }
+
+            //入力した文字列を分解し扱いやすい配列の形に変換する
+            //ついでに配列のデータ数が6（H-A-B-C-D-S）でなければテキトーに整える
+            makeStatsArray() {
+                if (this.inputID.value.length == 6 && this.inputID.value.search(/[0-9]/) != -1) {
+                    this.makeStats = this.inputID.value.match(/[0-9]/g);
+                } else {
+                    this.makeStats = this.inputID.value.match(/3[0-1]|[0-2]?[0-9]|[a-z]|[A-Z]/g);
+                }
+
+                if (this.makeStats == null) {
+                    this.makeStats = [0, 0, 0, 0, 0, 0];
+                }
+                let temp = this.makeStats.length;
+
+
+                if (temp < 6) {
+                    for (let i = 0; i < 6; i++) {
+                        if (this.makeStats[i] == undefined) {
+                            this.makeStats[i] = 0;
+                        }
+                    }
+                }
+                if (temp > 5) {
+                    for (let i = this.makeStats.length; i > 6; i--) {
+                        this.makeStats.pop();
+                    }
+                }
+                this.calcStatsNum(this.makeStats);
+            }
+
+            //入力された個体値を全て数値に変換する
+            calcStatsNum(inArray) {
+                let array = inArray;
+                console.log(array);
+                for (let i = 0; i < array.length; i++) {
+                    let temper = 0;
+                    //引数の配列の中に数字でない(アルファベットの)データがあった場合
+                    if (Number.isNaN(parseInt(array[i]))) {
+                        array[i] = array[i].toUpperCase();
+                        //配列の該当インデックスの中身をアルファベットに対応した数値に置き換える
+                        //ポケモンの個体値は32進法表記のため10を足す
+                        temper = this.alphabetList.indexOf(array[i]);
+                        if(temper == -1){
+                            temper = this.alphabetList.indexOf('V');
+                        }
+                        array[i] = temper + 10;
+                    }
+                    if (!Number.isNaN(parseInt(array[i]))) {
+                        array[i] = Number(array[i]);
+                    }
+
+                    if (array[i] > 31) {
+                        array[i] = 31;
+                    }
+                }
+                console.log(array);
+                this.makeStats = array;
+            }
+
+            //個体値からめざめるパワーのタイプを、第二世代当時採用されていた計算式で求める
+            //第二世代は特攻特防を合わせてとくしゅとしていた時代なのでたぶんこのメソッドを実装しておく意味はない
+            calcHiddenPowerType2ndGen() {
+                let temp = [0, 0];
+                temp[0] = this.makeStats[1] % 4;
+                temp[1] = this.makeStats[2] % 4;
+                return this.HiPow2ndGen[temp[0]][temp[1]];
+            }
+
+
+            calcHiddenPowerType() {
+                let typeTemp = 0;
+                let powTemp = 0;
+
+                for (let i = 0; i < this.makeStats.length; i++) {
+
+                    let n = this.makeStats[i];
+                    console.log(i,n)
+                    //HABSCDの順番に入れ替わっていることに注意
+                    switch (i) {
+                        case 0: //H
+                            if (n % 2 == 1) {
+                                typeTemp += 1;
+                            }
+                            if (n % 4 == 2 || n % 4 == 3) {
+                                powTemp += 1;
+                            }
+                            break;
+                        case 1: //A
+                            if (n % 2 == 1) {
+                                typeTemp += 2;
+                            }
+                            if (n % 4 == 2 || n % 4 == 3) {
+                                powTemp += 2;
+                            }
+                            break;
+                        case 2: //B
+                            if (n % 2 == 1) {
+                                typeTemp += 4;
+                            }
+                            if (n % 4 == 2 || n % 4 == 3) {
+                                powTemp += 4;
+                            }
+                            break;
+                        case 5: //S
+                            if (n % 2 == 1) {
+                                typeTemp += 8;
+                            }
+                            if (n % 4 == 2 || n % 4 == 3) {
+                                powTemp += 8;
+                            }
+                            break;
+                        case 3: //C
+                            if (n % 2 == 1) {
+                                typeTemp += 16;
+                            }
+                            if (n % 4 == 2 || n % 4 == 3) {
+                                powTemp += 16;
+                            }
+                            break;
+                        case 4: //D
+                            if (n % 2 == 1) {
+                                typeTemp += 32;
+                            }
+                            if (n % 4 == 2 || n % 4 == 3) {
+                                powTemp += 32;
+                            }
+                            break;
+                    }
+
+                }
+
+                typeTemp = Math.floor(typeTemp * 15 / 63);
+                let type = this.HiPow2ndGen[Math.floor(typeTemp / 4)][typeTemp % 4];
+                let power = Math.floor(powTemp * 40 / 63 + 30);
+                console.log(type, Math.floor(typeTemp / 4), typeTemp % 4, typeTemp, power, powTemp);
+                this.typeStack[0] = type;
+                this.typeStack[1] = power;
+            }
+
+            writeResult() {
+                let tempString = '';
+                for (let i = 0; i < this.makeStats.length; i++) {
+                    if (i != 0) {
+                        tempString += '-';
+                    }
+                    tempString += String(this.makeStats[i]);
+                }
+
+                tempString += ' : ' + this.typeStack[0] + 'タイプ 威力' + this.typeStack[1];
+                this.result.innerHTML = tempString + '<br>' + this.result.innerHTML;
+            }
+        }
+
+        let test = new clacer();
+    </script>
+</body>
+
+</html>

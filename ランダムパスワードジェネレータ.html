@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="jp">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ジェネレータ</title>
+    <style>
+        .container {
+            display: grid;
+            grid-template:
+                "title"3rem "digit"2rem "colu0"2rem "colu1"2rem "colu2"2rem "submi"2rem "resul"2rem/ 100%;
+            width: 30%;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .title {
+            grid-area: title;
+        }
+
+        .digit {
+            grid-area: digit;
+            display: flex;
+            align-items: center;
+        }
+
+
+        .column0 {
+            grid-area: colu0;
+        }
+
+        .column1 {
+            grid-area: colu1;
+        }
+
+        .column2 {
+            grid-area: colu2;
+        }
+
+        .info_text {
+            float: left;
+            margin: 0;
+            line-height: 2rem;
+            text-align: center;
+        }
+
+        .info_input {
+            float: left;
+            display: block;
+            border: 1px solid black;
+            padding: 0px 1rem;
+            line-height: 1rem;
+        }
+
+        .digit>.info_input {
+            width: 2rem;
+        }
+
+        .submit {
+            grid-area: submi;
+        }
+
+        .result {
+            grid-area: resul;
+            padding-top: 2rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+
+            <p class="title" id="title">Generator</p>
+            <div class="digit">
+                <p class="info_text">桁数</p><input type="text" class="info_input" id="dig">
+
+            <p>デフォルト: 8桁</p>
+        </div>
+        <div class="column0">
+            <p class="info_text"><label for="upp">英大文字</label></p><input class="info_input" type="checkbox" name="upp"
+                id="upp">
+            <p class="info_text"><label for="low">英小文字</label></p><input class="info_input" type="checkbox" name="low"
+                id="low">
+            <p class="info_text"><label for="mark">記号</label></p><input class="info_input" type="checkbox" name="mark"
+                id="mark">
+        </div>
+        <div class="column1">
+            <p class="info_text"><label for="num">数字</label></p><input class="info_input" type="checkbox" name="num"
+                id="num">
+            <p class="info_text"><label for="hir">ひらがな</label></p><input class="info_input" type="checkbox" name="hir"
+                id="hir">
+            <p class="info_text"><label for="kat">カタカナ</label></p><input class="info_input" type="checkbox" name="kat"
+                id="kat">
+        </div>
+
+        <div class="column2">
+            <p class="info_text"><label for="upp_lock">頭文字を英大文字固定にする</label></p><input type="checkbox"
+                class="info_input" name="upp_lock" id="upp_lock">
+        </div>
+
+        <button class="submit" onclick="test.submitToGo()">生成</button>
+    <button onclick="test.toClipBoard()">クリップボードにコピー</button>
+        <p id="result" onclick="test.toClipBoard()"></p>
+    </div>
+</body>
+<script>
+    class calcer {
+        constructor(formName, result) {
+
+            this.form = formName;
+            this.result = document.getElementById(result);
+
+            this.choiceType = [false, false, false, false, false, false];
+            this.resultText = '';
+
+            this.digID = document.getElementById('dig');
+            this.uppID = document.getElementById('upp');
+            this.lowID = document.getElementById('low');
+            this.markID = document.getElementById('mark');
+            this.numID = document.getElementById('num');
+            this.hirID = document.getElementById('hir');
+            this.katID = document.getElementById('kat');
+            this.uppLockID = document.getElementById('upp_lock');
+            this.titleID = document.getElementById('title');
+
+            this.listID = [this.uppID, this.lowID, this.markID, this.numID, this.hirID, this.katID];
+
+            this.upp = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+            this.low = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'];
+            this.mark = ['`', '˜', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '-', '=', '{', '}', '[', ']', '|', ':', ';', '<', '>', ',', '.', '?', '/'];
+            this.hir = ['あ', 'い', 'う', 'え', 'お', 'か', 'き', 'く', 'け', 'こ', 'さ', 'し', 'す', 'せ', 'そ', 'た', 'ち', 'つ', 'て', 'と', 'な', 'に', 'ぬ', 'ね', 'の', 'は', 'ひ', 'ふ', 'へ', 'ほ', 'ま', 'み', 'む', 'め', 'も', 'や', 'ゆ', 'よ', 'ら', 'り', 'る', 'れ', 'ろ', 'わ', 'を', 'ん'];
+            this.kat = ['ア', 'イ', 'ウ', 'エ', 'オ', 'カ', 'キ', 'ク', 'ケ', 'コ', 'サ', 'シ', 'ス', 'セ', 'ソ', 'タ', 'チ', 'ツ', 'テ', 'ト', 'ナ', 'ニ', 'ヌ', 'ネ', 'ノ', 'ハ', 'ヒ', 'フ', 'ヘ', 'ホ', 'マ', 'ミ', 'ム', 'メ', 'モ', 'ヤ', 'ユ', 'ヨ', 'ラ', 'リ', 'ル', 'レ', 'ロ', 'ワ', 'ヲ', 'ン'];
+
+            this.tempArray = [];
+            this.defaultDig = 8;
+        }
+
+        calcUpp() {
+            return this.upp[Math.floor(Math.random() * this.upp.length)];
+        }
+
+        calcLow() {
+            return this.low[Math.floor(Math.random() * this.low.length)];
+        }
+
+        calcMark() {
+            return this.mark[Math.floor(Math.random() * this.mark.length)];
+        }
+
+        calcNum() {
+            return String(Math.floor(Math.random() * 10));
+        }
+
+        calcHir() {
+            return this.hir[Math.floor(Math.random() * this.hir.length)];
+        }
+
+        calcKat() {
+            return this.kat[Math.floor(Math.random() * this.kat.length)];
+        }
+
+        submitToGo() {
+            this.makeString();
+        }
+
+        makeString() {
+            console.log('生成開始');
+            for (let i = 0; i < this.choiceType.length; i++) {
+                if (this.listID[i].checked == true) {
+                    this.choiceType[i] = true;
+                } else if (this.listID[i].checked == false) {
+                    this.choiceType[i] = false;
+                }
+            }
+
+            let tempPluPlu = 0;
+            console.log(this.defaultDig, this.digID.value, 'abc');
+            if (this.uppLockID.checked == true && !this.choiceType.every((v) => { return v == false })) {
+                this.resultText += String(this.calcUpp());
+                tempPluPlu--;
+            }
+
+            console.log('真偽値状態', this.choiceType);
+            if (this.digID.value == '') {
+                for (let i = 0; i < this.defaultDig + tempPluPlu; i++) {
+                    this.resultText += String(this.choiceSwitch());
+                }
+            } else {
+                for (let i = 0; i < Number(this.digID.value) + tempPluPlu; i++) {
+                    this.resultText += String(this.choiceSwitch());
+                }
+            }
+            tempPluPlu = 0;
+
+            console.log('テキスト出力', this.resultText);
+            this.result.innerText = String(this.resultText);
+            this.resultText = '';
+        }
+
+        choiceSwitch() {
+            this.tempArray = [];
+            let worker = '';
+            console.log('選択開始');
+
+            for (let i = 0; i < this.choiceType.length; i++) {
+                if (this.choiceType[i] == true) {
+                    this.tempArray.push(i);
+                }
+            }
+
+
+            let tempRand = this.tempArray[Math.floor(Math.random() * this.tempArray.length)];
+
+            switch (tempRand) {
+                case tempRand = 0:
+                    worker = this.calcUpp();
+                    break;
+                case tempRand = 1:
+                    worker = this.calcLow();
+                    break;
+                case tempRand = 2:
+                    worker = this.calcMark();
+                    break;
+                case tempRand = 3:
+                    worker = this.calcNum();
+                    break;
+                case tempRand = 4:
+                    worker = this.calcHir();
+                    break;
+                case tempRand = 5:
+                    worker = this.calcKat();
+                    break;
+            }
+            return worker;
+        }
+
+        toClipBoard() {
+            navigator.clipboard.writeText(this.result.innerText);
+            this.titleID.innerText = 'コピーしました';
+            this.titleID.style.color = 'limegreen';
+            setTimeout(() => {
+                this.titleID.innerText = 'Generator';
+                this.titleID.style.color = '';
+            }, 2000);
+
+        }
+
+    }
+
+    let test = new calcer('generator', 'result');
+</script>
+
+</html>
