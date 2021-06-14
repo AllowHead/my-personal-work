@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="jp">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            text-align: center;
+            width: 25rem;
+            margin: 0px auto;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>アイテムいくつ言えるかな？</h1>
+    <p>LoLに存在するアイテム、あなたはいくつ言えますか。金剣とか黒斧だとかの俗称は知っていても、正式名称を一言一句覚えているという方はそこまでいないはず。そんな中、全てのアイテムの正式名称を覚えていられたらかっこいいと思いませんか？えっ思わない？
+    </p>
+    <p>対象アイテム: ゲーム内のアイテムセットの作成時に表示されるリスト内に存在する全てのアイテム。なお、カリスタとサイラスそれぞれ用の槍など、名前が同じアイテムが複数存在する場合、全て合わせて一つのアイテムとしてカウント。</p>
+    <input type="text" id="inputer"><button id="submitB">判定</button>
+    <p>残り: <span id="counter">ロード中...</span> ミス数: <span id="miss">0回</span></p>
+    <p id="result"></p>
+
+    <script>
+
+        //各種HTMLエレメント指定用
+        const INPUT = document.getElementById('inputer');
+        const RESULT = document.getElementById('result');
+        const SUBMIT = document.getElementById('submitB');
+        const COUNTER = document.getElementById('counter');
+        const MISS = document.getElementById('miss');
+
+
+        //アイテムリストのjsonをfetchAPIを用いてriotのデータドラゴンから取得する
+        let versionData = []; //バージョンリスト
+        let versionLatest = ''; //最新バージョン
+        const versionURI = 'https://ddragon.leagueoflegends.com/api/versions.json'; //バージョンリストの取得先URI
+        let itemListData = {}; //アイテムリストの生データ(未加工)
+
+        //まずバージョンリストを要求
+        fetch(versionURI).then(async (response) => {
+
+            //取得成功時
+            try {
+                const VERDATA = await response.json(); //バージョンリストの生データの一時保存
+                versionData = VERDATA; //バージョンリストをfetch外で利用可能にしておく
+                versionLatest = VERDATA[0]; //最新版のバージョン数(文字列)を取得。必ず配列の頭に最新版が来る(らしい)ので配列[0]の形で抽出
+                const URI = `http://ddragon.leagueoflegends.com/cdn/${versionLatest}/data/ja_JP/item.json`; //最新版バージョンのアイテムリストを取得
+
+                //アイテムリストの要求
+                fetch(URI).then(async (response) => {
+
+                    //取得成功時
+                    try {
+                        const ITEMDATA = await response.json(); //アイテムリストの生データの一時保存
+                        itemListData = ITEMDATA; //アイテムリストをfetch外で利用可能にしておく
+                        makeNameList(itemListData); //アイテムリストから名前を抽出
+                        setToCounter(false); //アイテムリストが取れたのでアイテム数のカウンタを設定。引数にtrueを設定するとプラス1されてしまうのでfalseを指定しておく
+
+                        //ギブアップ時のアイテムリストの表示方法の説明
+                        console.log('降参する？');
+                        console.log(`降参するなら{list: Array(${itemNameList.length})}をクリックして、その下のlistなんとかって書かれている部分をクリック。その後に[0...99]とか書かれてる部分をクリックするとアイテムリストが表示されるよ。`);
+                        console.log('手順がちょっと複雑だけど、そもそもデバッグコンソールを開く発想に行き着く人なら迷わないハズ。');
+                        //アイテムリストの表示。オブジェクトの中に格納して要素がプレビュー表示されることによるネタバレを防止しておく
+                        const LIST = { list: itemNameList }
+                        console.log(LIST);
+
+                        //アイテムリストの取得失敗(エラー)時のエラー出力
+                    } catch (error) {
+                        console.log('アイテムリストの取得エラー');
+                        console.error(error);
+                    }
+                });
+
+                //バージョンリストの取得失敗(エラー)時のエラー出力
+            } catch (error) {
+                console.log('バージョンリストの取得エラー');
+                console.error(error);
+            }
+
+        });
+
+
+
+        //アイテムリストのjsonからアイテムの名前を抽出して配列に格納する
+        let itemNameList = []; //帰ってきた名前のリストの格納先
+        function makeNameList(DATA) {
+
+            //引数のオブジェクトからアイテム名を抽出し、そのアイテム名の間に入った空白を取り除く
+            for (let i = 0; i < Object.keys(DATA.data).length; i++) {
+                itemNameList[i] = DATA.data[Object.keys(DATA.data)[i]].name.replace(/ /g, "");
+            }
+
+            //完全精度と始まりそれぞれの使用後の壊れたストップウォッチ、カリスタとサイラスそれぞれ用の復讐の黒槍など、アイテム名が重複する物を配列から削除する
+            itemNameList = itemNameList.filter((x, i, name) => {
+                return name.indexOf(x) === i;
+            });
+
+        }
+
+        //ユーザーから入力されたアイテム名が正解かどうか判定し、判定結果に応じて処理を行う
+        let resultArray = []; //ユーザーが入力したアイテム名のリスト
+        function checkToInput() {
+
+            //入力文字列が空白だった場合見なかったことにしておく
+            if (INPUT.value == '') {
+                return;
+            }
+
+            let inputItem = itemNameList.indexOf(INPUT.value); //入力されたアイテムの名前リストにおけるインデックス名
+            //入力されたアイテム名が名前リストに存在しており、かつ一度も入力したことないアイテム名だった場合
+            if (inputItem != -1 && resultArray.indexOf(INPUT.value) == -1) {
+                resultArray.push(itemNameList[inputItem]); //正解したアイテムとして入力アイテム名のリストに追加
+                setToCounter(true); //カウンターの正解アイテム数を一つ増やす
+                confirmResult(); //正解したアイテムを表示しておく
+            } else {
+                addToMissCounter(); //ミス数のカウントを一つ足す
+            }
+            INPUT.value = ''; //入力欄のテキストを消去
+        }
+
+        //正解したアイテム数を記録、カウンタに反映する
+        let correct = 0;　//正解アイテム数
+        function setToCounter(bool) {
+            //trueなら、正解数をプラス1しておく。falseの場合はカウンタの初期化のみ
+            if (bool == true) {
+                correct++;
+            }
+            //多分itemNameList.lengthの部分は別の関数に分離した方がパフォーマンスが高いと思う
+            COUNTER.innerText = String(correct) + '/' + itemNameList.length;
+        }
+        
+        //ユーザーのミス数を記録、ミスカウンタに反映する
+        let missCount = 0; //ミス数
+        function addToMissCounter() {
+            missCount++;
+            MISS.innerText = String(missCount) + '回';
+        }
+
+        //正解したアイテムの一覧を記録、表示する
+        function confirmResult() {
+            RESULT.innerText = resultArray.reduce((beforA, currentA) => {
+                return String(beforA) + ', ' + String(currentA);
+            });
+        }
+
+        //テキスト入力欄にフォーカスした状態でのエンターキーの入力を監視
+        INPUT.addEventListener('keypress', (e) => {
+            if (e.keyCode == 13) {
+                checkToInput();
+            }
+        }, false);
+
+        //判定ボタンを押したかどうかの監視
+        SUBMIT.addEventListener('click', () => {
+            checkToInput()
+        }, false)
+
+
+    </script>
+</body>
+
+</html>
